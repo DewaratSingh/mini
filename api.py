@@ -16,10 +16,21 @@ with open('wind_model.pkl', 'rb') as f:
 with open('condition_model.pkl', 'rb') as f:
     cond_model = pickle.load(f)
 
+with open('district_model.pkl', 'rb') as f:
+    district_model = pickle.load(f)
+
 class PredictionRequest(BaseModel):
     district: str
     year: int
     month: int
+
+class DistrictPredictionRequest(BaseModel):
+    year: int
+    month: int
+    temperature: float
+    condition: str
+    rainfall_mm: float
+    humidity: float
 
 @app.post("/predict")
 def predict(req: PredictionRequest):
@@ -39,6 +50,25 @@ def predict(req: PredictionRequest):
         "temperature": round(float(temp), 1),
         "wind_speed": round(float(wind), 1),
         "condition": cond
+    }
+
+@app.post("/predict_district")
+def predict_district(req: DistrictPredictionRequest):
+    # Create dataframe for prediction
+    df = pd.DataFrame([{
+        'year': req.year,
+        'month': req.month,
+        'temperature': req.temperature,
+        'condition': req.condition,
+        'rainfall_mm': req.rainfall_mm,
+        'humidity': req.humidity
+    }])
+    
+    # Predict
+    district = district_model.predict(df)[0]
+    
+    return {
+        "district": district
     }
 
 if __name__ == "__main__":
