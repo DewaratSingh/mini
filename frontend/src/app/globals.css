@@ -1,0 +1,156 @@
+:root {
+  --jarvis-blue: #00e5ff;
+  --jarvis-dark: #0a0e17;
+  --jarvis-panel: rgba(10, 15, 30, 0.8);
+  --text-primary: #e0f2fe;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--jarvis-dark);
+  color: var(--text-primary);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+}
+
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 800px;
+  padding: 2rem;
+  box-sizing: border-box;
+}
+
+.title {
+  font-size: 2.5rem;
+  font-weight: 300;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--jarvis-blue);
+  text-shadow: 0 0 10px rgba(0, 229, 255, 0.5);
+  margin-bottom: 2rem;
+}
+
+.mic-button {
+  background: transparent;
+  border: 2px solid var(--jarvis-blue);
+  border-radius: 50%;
+  width: 120px;
+  height: 120px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  box-shadow: 0 0 20px rgba(0, 229, 255, 0.2), inset 0 0 20px rgba(0, 229, 255, 0.2);
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.mic-button:hover {
+  box-shadow: 0 0 30px rgba(0, 229, 255, 0.4), inset 0 0 30px rgba(0, 229, 255, 0.4);
+}
+
+.mic-button.listening {
+  animation: pulse 1.5s infinite alternate;
+  border-color: #ff3366;
+  box-shadow: 0 0 30px rgba(255, 51, 102, 0.5), inset 0 0 30px rgba(255, 51, 102, 0.5);
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  100% { transform: scale(1.1); }
+}
+
+.mic-icon {
+  width: 40px;
+  height: 40px;
+  fill: var(--jarvis-blue);
+  transition: fill 0.3s ease;
+}
+
+.mic-button.listening .mic-icon {
+  fill: #ff3366;
+}
+
+.status-text {
+  margin-top: 2rem;
+  font-size: 1.2rem;
+  color: #8892b0;
+  min-height: 1.5rem;
+}
+
+.query-text {
+  margin-top: 1rem;
+  font-size: 1.5rem;
+  font-style: italic;
+  color: #ccd6f6;
+  text-align: center;
+  min-height: 2rem;
+}
+
+.response-box {
+  margin-top: 2rem;
+  background: var(--jarvis-panel);
+  border: 1px solid rgba(0, 229, 255, 0.3);
+  border-radius: 12px;
+  padding: 1.5rem;
+  width: 100%;
+  text-align: center;
+  font-size: 1.4rem;
+  line-height: 1.6;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+
+.response-box.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Waveform animation */
+.waveform {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 60px;
+  gap: 4px;
+  margin-top: 2rem;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.waveform.active {
+  opacity: 1;
+}
+
+.bar {
+  width: 6px;
+  height: 10px;
+  background-color: var(--jarvis-blue);
+  border-radius: 3px;
+  animation: wave 1s infinite alternate;
+}
+
+.waveform.active .bar:nth-child(1) { animation-delay: 0.0s; }
+.waveform.active .bar:nth-child(2) { animation-delay: 0.2s; }
+.waveform.active .bar:nth-child(3) { animation-delay: 0.4s; }
+.waveform.active .bar:nth-child(4) { animation-delay: 0.6s; }
+.waveform.active .bar:nth-child(5) { animation-delay: 0.8s; }
+.waveform.active .bar:nth-child(6) { animation-delay: 0.5s; }
+.waveform.active .bar:nth-child(7) { animation-delay: 0.3s; }
+
+@keyframes wave {
+  0% { height: 10px; }
+  100% { height: 50px; }
+}
