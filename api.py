@@ -5,7 +5,7 @@ import pandas as pd
 
 app = FastAPI(title="Weather Prediction API")
 
-# Load models
+
 print("Loading models...")
 with open('temperature_model.pkl', 'rb') as f:
     temp_model = pickle.load(f)
@@ -34,14 +34,13 @@ class DistrictPredictionRequest(BaseModel):
 
 @app.post("/predict")
 def predict(req: PredictionRequest):
-    # Create dataframe for prediction
     df = pd.DataFrame([{
         'year': req.year,
         'month': req.month,
         'district': req.district
     }])
     
-    # Predict
+    
     temp = temp_model.predict(df)[0]
     wind = wind_model.predict(df)[0]
     cond = cond_model.predict(df)[0]
@@ -54,7 +53,7 @@ def predict(req: PredictionRequest):
 
 @app.post("/predict_district")
 def predict_district(req: DistrictPredictionRequest):
-    # Create dataframe for prediction
+    
     df = pd.DataFrame([{
         'year': req.year,
         'month': req.month,
@@ -64,7 +63,6 @@ def predict_district(req: DistrictPredictionRequest):
         'humidity': req.humidity
     }])
     
-    # Predict
     district = district_model.predict(df)[0]
     
     return {

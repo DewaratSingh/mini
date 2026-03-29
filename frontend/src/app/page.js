@@ -13,7 +13,6 @@ export default function Home() {
   const synthRef = useRef(null);
 
   useEffect(() => {
-    // Initialize Speech Recognition
     if (typeof window !== 'undefined') {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (SpeechRecognition) {
@@ -47,7 +46,6 @@ export default function Home() {
         setStatus('Speech recognition not supported in this browser.');
       }
 
-      // Initialize Speech Synthesis
       synthRef.current = window.speechSynthesis;
     }
   }, []);
@@ -60,7 +58,7 @@ export default function Home() {
         body: JSON.stringify({ text })
       });
       const data = await res.json();
-      
+
       if (data.answer) {
         setResponse(data.answer);
         setStatus('Response ready...');
@@ -74,24 +72,22 @@ export default function Home() {
 
   const speak = (text) => {
     if (!synthRef.current) return;
-    
-    // Stop any ongoing speech (voice interruption support)
+
     synthRef.current.cancel();
 
     const utterance = new SpeechSynthesisUtterance(text);
-    
-    // Try to find a good English voice
+
     const voices = synthRef.current.getVoices();
     const jarvisVoice = voices.find(v => v.name.includes('Google UK English Male') || v.name.includes('Daniel') || v.name.includes('Male')) || voices[0];
     if (jarvisVoice) utterance.voice = jarvisVoice;
-    
+
     utterance.pitch = 0.9;
     utterance.rate = 1.0;
 
     utterance.onstart = () => setIsSpeaking(true);
     utterance.onend = () => {
-        setIsSpeaking(false);
-        setStatus('Awaiting next command...');
+      setIsSpeaking(false);
+      setStatus('Awaiting next command...');
     };
     utterance.onerror = () => setIsSpeaking(false);
 
@@ -103,7 +99,7 @@ export default function Home() {
       recognitionRef.current?.stop();
     } else {
       if (isSpeaking) {
-        synthRef.current?.cancel(); // Interrupt speech if mic is pressed again
+        synthRef.current?.cancel();
         setIsSpeaking(false);
       }
       setTranscript('');
@@ -115,9 +111,9 @@ export default function Home() {
   return (
     <div className="container">
       <h1 className="title">Jarvis Systems</h1>
-      
-      <button 
-        className={`mic-button ${isListening ? 'listening' : ''}`} 
+
+      <button
+        className={`mic-button ${isListening ? 'listening' : ''}`}
         onClick={toggleListen}
         aria-label="Microphone"
       >
@@ -137,9 +133,9 @@ export default function Home() {
       </div>
 
       <div className="status-text">{status}</div>
-      
+
       {transcript && <div className="query-text">"{transcript}"</div>}
-      
+
       <div className={`response-box ${response ? 'visible' : ''}`}>
         {response}
       </div>

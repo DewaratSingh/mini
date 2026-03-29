@@ -9,8 +9,7 @@ def main():
     print("Loading dataset...")
     df = pd.read_csv('maharashtra_weather_5year.csv')
 
-    # Model 1: Weather Prediction (Predict temperature, wind_speed, condition)
-    # Features: year, month, district
+    # Model 1: Weather Prediction
     X_weather = df[['year', 'month', 'district']]
     y_temp = df['temperature']
     y_wind = df['wind_speed']
@@ -51,12 +50,10 @@ def main():
     with open('condition_model.pkl', 'wb') as f:
         pickle.dump(cond_model, f)
 
-    # Model 2: District Prediction (Predict district)
-    # Features: year, month, temperature, condition, rainfall_mm, humidity
+    # Model 2: District Prediction
     X_district = df[['year', 'month', 'temperature', 'condition', 'rainfall_mm', 'humidity']]
     y_district = df['district']
 
-    # Preprocessor for condition in Model 2
     district_preprocessor = ColumnTransformer(
         transformers=[
             ('cat', OneHotEncoder(handle_unknown='ignore'), ['condition'])

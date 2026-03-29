@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
-const { OpenAI } = require('openai');
+const { GoogleGenAI } = require('@google/genai');
 require('dotenv').config();
 
 const app = express();
@@ -11,10 +11,8 @@ app.use(express.json());
 const PORT = 3001;
 const FASTAPI_URL = 'http://localhost:8000';
 
-// Initialize OpenAI
-const openai = new OpenAI({
-  apiKey: ""
-})
+
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 const months = {
   "january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6,
@@ -83,34 +81,45 @@ app.post('/api/chat', async (req, res) => {
     let intent, entities;
     let usedGPT = false;
 
-    // 1. Try GPT for NLU
     try {
-      console.log("Calling OpenAI for NLU...");
-      const nluResponse = await openai.chat.completions.create({
-        model: "gpt-3.5-turbo",
-        messages: [
-          {
-            role: "system",
-            content: `You are a weather assistant NLU. Classify the user's intent as:
-                    - 'forecast': checking weather for a place.
-                    - 'find_place': finding a place with specific weather.
-                    - 'general': greetings, "who are you", or small talk.
-                    
-                    Extract entities for 'forecast' (district, year, month) and 'find_place' (year, month, temperature, condition, rainfall_mm, humidity). 
-                    No entities for 'general'.
-                    Default year to current year, month to current month.
-                    Return ONLY JSON.`
-          },
-          { role: "user", content: text }
-        ],
-        response_format: { type: "json_object" }
+      console.log("Calling Gemini for NLU...");
+      const nluResponse = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: `You are a weather assistant NLU. Classify the user's intent based on their query.
+If the user wants to check FUTURE/FORECAST weather for a place, return EXACTLY: PredictWeather,DistrictName (e.g., PredictWeather,Thane).
+If the user wants to check CURRENT/REAL-TIME weather for a place, return EXACTLY: CurrentWeather,CityName (e.g., CurrentWeather,Pune).
+If the user wants to find a place based on weather conditions, return EXACTLY: FindPlace,Condition,Temperature (e.g., FindPlace,Cloudy,25).
+If the user is just saying hi or making small talk, return EXACTLY: General,Text (e.g., General,Hello).
+Do not output anything else, no markdown, no JSON. Only the comma-separated format.
+User query: ${text}`
       });
 
-      const nluData = JSON.parse(nluResponse.choices[0].message.content);
-      intent = nluData.intent;
-      entities = nluData.entities;
+      const output = nluResponse.text.trim();
+      console.log("Gemini NLU Output:", output);
+      const parts = output.split(',');
+      const intentStr = parts[0].trim();
+
+      if (intentStr === 'PredictWeather') {
+        intent = 'forecast';
+        entities = { district: parts[1] ? parts[1].trim() : "Mumbai", year: new Date().getFullYear(), month: new Date().getMonth() + 1 };
+      } else if (intentStr === 'FindPlace') {
+        intent = 'find_place';
+        entities = {
+          condition: parts[1] ? parts[1].trim() : "Cloudy",
+          temperature: parts[2] ? parseFloat(parts[2]) : 25,
+          year: new Date().getFullYear(), month: new Date().getMonth() + 1,
+          rainfall_mm: 0, humidity: 50
+        };
+      } else if (intentStr === 'CurrentWeather') {
+        intent = 'current_weather';
+        entities = { district: parts[1] ? parts[1].trim() : "Mumbai" };
+      } else {
+        intent = 'general';
+        entities = {};
+      }
+
       usedGPT = true;
-      console.log("GPT NLU Success. Intent:", intent);
+      console.log("Gemini NLU Success. Intent:", intent);
     } catch (err) {
       console.warn("GPT NLU failed, using algorithm fallback:", err.message);
       const fallback = extractEntitiesAlgo(text);
@@ -121,55 +130,67 @@ app.post('/api/chat', async (req, res) => {
     let predictionData = null;
     let result = null;
 
-    // 2. Call local ML API ONLY if it's a weather-related query
-    if (intent === 'forecast' || intent === 'find_place') {
-      let mlEndpoint;
-      if (intent === 'forecast') {
-        mlEndpoint = `${FASTAPI_URL}/predict`;
-        predictionData = {
-          district: entities.district || "Pune",
-          year: parseInt(entities.year) || new Date().getFullYear(),
-          month: parseInt(entities.month) || (new Date().getMonth() + 1)
-        };
-      } else {
-        mlEndpoint = `${FASTAPI_URL}/predict_district`;
-        predictionData = {
-          year: parseInt(entities.year) || new Date().getFullYear(),
-          month: parseInt(entities.month) || (new Date().getMonth() + 1),
-          temperature: parseFloat(entities.temperature) || 25,
-          condition: entities.condition || "Cloudy",
-          rainfall_mm: parseFloat(entities.rainfall_mm) || 0,
-          humidity: parseFloat(entities.humidity) || 50
-        };
-      }
 
-      console.log(`Calling ML API at ${mlEndpoint} with data:`, predictionData);
-      const mlResponse = await axios.post(mlEndpoint, predictionData);
-      result = mlResponse.data;
-      console.log("ML API Response:", result);
+    if (intent === 'forecast' || intent === 'find_place' || intent === 'current_weather') {
+      if (intent === 'current_weather') {
+        try {
+          const city = entities.district;
+          predictionData = { city, type: "Real-time" };
+          console.log(`Fetching current weather for ${city} via Open-Meteo...`);
+          const geoRes = await axios.get(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1`);
+          if (geoRes.data.results && geoRes.data.results.length > 0) {
+            const { latitude, longitude } = geoRes.data.results[0];
+            const weatherRes = await axios.get(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true`);
+            result = weatherRes.data.current_weather;
+          } else {
+            result = { error: "City not found for current weather." };
+          }
+          console.log("Open-Meteo Response:", result);
+        } catch (e) {
+          result = { error: "Failed to fetch current weather." };
+        }
+      } else {
+        let mlEndpoint;
+        if (intent === 'forecast') {
+          mlEndpoint = `${FASTAPI_URL}/predict`;
+          predictionData = {
+            district: entities.district || "Pune",
+            year: parseInt(entities.year) || new Date().getFullYear(),
+            month: parseInt(entities.month) || (new Date().getMonth() + 1)
+          };
+        } else {
+          mlEndpoint = `${FASTAPI_URL}/predict_district`;
+          predictionData = {
+            year: parseInt(entities.year) || new Date().getFullYear(),
+            month: parseInt(entities.month) || (new Date().getMonth() + 1),
+            temperature: parseFloat(entities.temperature) || 25,
+            condition: entities.condition || "Cloudy",
+            rainfall_mm: parseFloat(entities.rainfall_mm) || 0,
+            humidity: parseFloat(entities.humidity) || 50
+          };
+        }
+
+        console.log(`Calling ML API at ${mlEndpoint} with data:`, predictionData);
+        const mlResponse = await axios.post(mlEndpoint, predictionData);
+        result = mlResponse.data;
+        console.log("ML API Response:", result);
+      }
     }
 
-    // 3. Try GPT for final response formatting
+    // 3. Try Gemini for final response formatting
     let answer;
     try {
-      if (!usedGPT) throw new Error("Skipping GPT formatting because NLU failed");
+      if (!usedGPT) throw new Error("Skipping Gemini formatting because NLU failed");
 
-      console.log("Calling OpenAI for response formatting...");
-      const finalResponse = await openai.chat.completions.create({
-        model: "gpt-3.5-turbo",
-        messages: [
-          {
-            role: "system",
-            content: "You are Jarvis, a helpful weather assistant for Maharashtra. Create a friendly, natural response. If the intent is 'general', just respond to the user politely as a weather assistant."
-          },
-          {
-            role: "user",
-            content: `Query: ${text}. Intent: ${intent}. Input Data: ${JSON.stringify(predictionData)}. Prediction Result: ${JSON.stringify(result)}.`
-          }
-        ]
+      console.log("Calling Gemini for response formatting...");
+      const finalResponse = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: `You are Jarvis, a helpful website weather assistant for Maharashtra. Create a friendly, natural response. If the intent is 'general', just respond to the user politely.
+Query: ${text}. Intent: ${intent}. Input Data: ${JSON.stringify(predictionData)}. Prediction Result: ${JSON.stringify(result)}.
+Return ONLY the text response.`
       });
-      answer = finalResponse.choices[0].message.content;
-      console.log("GPT Response Formatting Success.");
+      answer = finalResponse.text.trim();
+      console.log("Gemini Response Formatting Success.");
     } catch (err) {
       console.warn("GPT formatting failed, using algorithm fallback:", err.message);
       answer = formatResponseAlgo(text, intent, predictionData, result);
